@@ -1,0 +1,124 @@
+%%%%%%%%%%%%
+%%%%%%%%%%%%
+%%%%%%%%%%%%The doctor role
+role owner (Id, Cloud, CA: agent, Hash,Hash1:hash_func, KC: public_key,  KS,C2S: symmetric_key,S1,S2,S3,Seed:text, SND, RCV: channel (dy))   %%know
+
+played_by Id def=
+
+  local State: nat,  KCA: public_key, Data,OK: text,
+  Seed1:text, Kab:symmetric_key
+  init State := 1
+ 
+  transition
+%%%%%%%%%%%%The request generation
+    1. State  = 1 /\ RCV(start) =|> State':= 5  /\ Kab':=new() /\ SND({Id.Hash(S1,S2,S3).Kab'.Seed}_KC) /\  witness(Id, Cloud, ca_authenticates_Id, Id) 
+%%%%%%%%%%%%The reception of the new seed and data transmissions
+   5. State  = 5 /\ RCV({Id.Seed1'}_C2S) =|> State':=7  /\ Data':=new() /\ SND( {Id.Data'.Cloud}_Hash1(Id.Hash(S1,S2,S3).Seed1'))
+ %%%%%%%%%%%%The reception of the ackolwdgement
+  7. State = 7 /\ RCV({Id.OK'}_C2S) =|> State':=8
+	                                               
+     
+end role
+                                                                                                                                                                                                      
+%%%%%%%%%%%%The Cloud Agent
+role cloud (Cloud, Id,CA: agent, Hash,Hash1:hash_func, KC: public_key, IDN,C2S: symmetric_key, SND, RCV: channel (dy)) 
+
+played_by Cloud def=
+  local State: nat,KP: public_key, Seed,Seed1,Data,OK:text,S1,S2,S3,S4:text, 
+Kab:symmetric_key
+  init State := 2
+  
+  transition
+  
+  2. State  = 2 /\ RCV({Id.Hash(S1',S2',S3').Kab'.Seed'}_KC') =|> State':= 4 /\  SND({Id.Kab'.Seed'}_IDN)
+  /\ witness(Cloud, CA ,ca_authenticates_Id1 , Seed')
+  /\ witness(Cloud, CA ,ca_authenticates_Id2 , Id)
+   /\  request(Cloud,Id,  ca_authenticates_Id, Id) 
+%%%%%%%%%%%%The new Seed generation
+  4. State  = 4 /\ RCV( {Id.Seed.S1.S2.S3}_Kab') =|> State':= 6 /\ Seed1':=new() /\ SND({Id.Seed1'}_C2S)
+%%%%%%%%%%%%The reception of the encrypted data role
+ 6. State = 6 /\ RCV({Id.Data'.Cloud}_Hash1(Id.Hash(S1,S2,S3).Seed1')) =|> State':=8 /\ OK':=new() /\ SND({Id.OK'}_C2S) 
+                                                    
+		
+  end role
+%
+%%%%%%%%%%%%The smart contract role
+role blockcahin_CA (Cloud,Id, CA: agent, S1,S2,S3,Seed: text, IDN: symmetric_key, SND, RCV: channel (dy)) 
+
+played_by CA def=
+
+  local State: nat, Kab:symmetric_key
+  init State := 3  
+  transition
+  
+  3. State  = 3 /\ RCV({Id.Kab'.Seed}_IDN) =|> State':=5 /\  SND({Id.Seed.S1.S2.S3}_Kab')
+        /\ secret(S1, sec_2, {Id,CA}) /\    
+        secret(S2, sec_3, {Id,CA})
+        /\    secret(S3, sec_4, {Id,CA})  
+        /\ request(CA  ,Cloud, ca_authenticates_Id1  , Seed)
+	/\ request(CA  ,Cloud, ca_authenticates_Id2  , Id)
+
+
+end role
+%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+role session(Id, Cloud, CA: agent,Hash,Hash1:hash_func,
+ KC: public_key, KS,IDN, C2S : symmetric_key,  S1,S2,S3,Seed:text)
+
+
+  def=
+  local SAP, RAP, SCloud, RCloud, SCA, RCA: channel (dy)
+
+  composition 
+
+        owner  (Id, Cloud, CA,Hash, Hash1,   KC,  KS,  C2S,S1,S2,S3,Seed, SAP, RAP)
+     
+     /\ cloud    ( Cloud, Id,CA,  Hash,  Hash1,  KC,  IDN,      C2S, SCloud, RCloud)
+     /\ blockcahin_CA(Cloud, Id, CA,   S1,S2,S3,Seed,  IDN, SCA, RCA)
+     
+
+end role
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+role environment() def=
+
+const tn1, dn1, ml, ca: agent,                                                                        		hh,hhh,hh1,hhh1: hash_func,
+	  kc: public_key, 
+	  ks,idn,c2s,iidn,cc2s: symmetric_key,
+          ss1,ss2,ss3,sseed, sseed1:text,
+          ca_authenticates_Id,
+	  ca_authenticates_Id1,
+	  ca_authenticates_Id2,
+	  sec_11, sec_2, sec_3, sec_4: protocol_id
+          
+    intruder_knowledge = {  ml, kc, ca}
+
+    composition
+        session(tn1, ml,  ca, hh,hh1, kc, ks,idn, c2s, ss1,ss2,ss3,sseed)
+    %/\ session(dn1, ml,  ca, hhh,hhh1, kc, ks,iidn, cc2s, ss1,ss2,ss3,sseed1)
+     
+
+end role
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+goal
+
+  authentication_on ca_authenticates_Id
+  authentication_on ca_authenticates_Id1
+  authentication_on ca_authenticates_Id2
+  secrecy_of sec_2
+  secrecy_of sec_3
+  secrecy_of sec_4
+  secrecy_of sec_11
+                                                      
+
+end goal
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+environment()
+
